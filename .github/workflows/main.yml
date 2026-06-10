@@ -1,0 +1,81 @@
+name: Build PocketOption Bot APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 90
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install system packages
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y \
+          git zip unzip wget \
+          openjdk-11-jdk \
+          python3-pip \
+          build-essential \
+          libffi-dev \
+          libssl-dev \
+          libltdl-dev \
+          zlib1g-dev \
+          ccache \
+          autoconf \
+          automake \
+          libtool \
+          pkg-config
+
+    - name: Install Python deps
+      run: |
+        pip install --upgrade pip setuptools wheel
+        pip install Cython==0.29.37
+        pip install buildozer==1.5.0
+
+    - name: Cache Buildozer global
+      uses: actions/cache@v3
+      with:
+        path: ~/.buildozer
+        key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-global-
+
+    - name: Cache Gradle
+      uses: actions/cache@v3
+      with:
+        path: ~/.gradle
+        key: gradle-${{ hashFiles('buildozer.spec') }}
+
+    - name: Build APK
+      run: |
+        buildozer android debug 2>&1 | tee build.log
+        echo "=== Build finished ==="
+        ls -la bin/ 2>/dev/null || echo "No APK found in bin/"
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      if: success()
+      with:
+        name: PocketOptionBot-APK
+        path: bin/*.apk
+        retention-days: 30
+
+    - name: Upload log on failure
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: build-log-error
+        path: build.log
+        retention-days: 7
